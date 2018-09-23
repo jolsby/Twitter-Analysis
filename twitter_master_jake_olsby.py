@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*-  utf-8 -*-
 """
 Created on Sun Aug 12 11:41:07 2018
 
@@ -9,6 +9,7 @@ import tweepy
 import pandas as pd
 import collections
 import datetime
+from textblob import TextBlob
 #place twitter_config in the same directory
 #please use your own keys and secrets
 import twitter_config
@@ -40,9 +41,8 @@ api=tweepy.API(auth)
 #-----------------------------------------------------------------------------
 
 #Get tweets function, defaults to 100 most recent  
-def get_tweets(screen_name = '@BillGates'
-               ,number_of_tweets = 100
-               ,output_filename = 'bill_gates_tweets_by_jake_olsby'):
+def get_tweets(screen_name = '@elonmusk'
+               ,number_of_tweets = 100):
     '''
     A function to retrieve data around a users tweets
     for the most recent number of tweets. Defaulting as 100 tweets.
@@ -56,21 +56,28 @@ def get_tweets(screen_name = '@BillGates'
                                , tweet_mode='extended')
     
     #the tweet and some details on the topic
-    tweets_master = [[screen_name, tweet.id_str, tweet.created_at, tweet.full_text.encode('utf-8')] for tweet in tweets]
+    tweets_master = [[screen_name, tweet.id_str, tweet.created_at, tweet.full_text.encode('utf-8'), tweet.favorite_count] for tweet in tweets]
     
     for j in tweets_master:
         #looping through all the tweets
-        j3 = str(j[3]).replace('"','').replace('\\','')
+        j3 = str(j[3]).replace('"','').replace('\\','').replace("'",'')
         #stripping quotes and \ within text to make the JSON function as expected.
         #I realize I could scale this out better with Regex and the re package
-        #but this seemed more direct, and less verbose for this need
-        json = (f'''{{"screen_name": "{j[0]}","tweet_id": {j[1]},"created_datetime": "{j[2]}","tweet_full_text": "{j3}"}},\n''')
+        #but this seemed more direct, and less verbose for this need.
+        #
+        #get the sentiment analysis score of each tweet's text with TextBlob
+        #simple Natural Language Processing (NLP) demonstration below
+        # to demonstrate more interesting analysis
+        sentiment_score = round(float(TextBlob(j3).sentiment.polarity), 2)
+        #
+        #JSON format below
+        json = (f'''{{"screen_name": "{j[0]}","tweet_id": {j[1]},"created_datetime": "{j[2]}","tweet_favorite_count": {j[4]},"tweet_sentiment_score": {sentiment_score},"tweet_full_text": "{j3}"}},\n''')
         #append the JSON within the file for each tweets data
         #write it as JSON file type
-        with open(f"{output_filename}.json", "a") as myfile:
+        with open(f"{screen_name}_by_jake_olsby.json", "a") as myfile:
             myfile.write(json)
             
-    print(f'Successfully wrote to JSON. Please see {output_filename}.json\n')
+    print(f'Successfully wrote to JSON. Please see {screen_name}_by_jake_olsby.json\n')
     
 #-----------------------------------------------------------------------------
 ##############################################################################
@@ -89,7 +96,7 @@ def find_hashtags(tweet):
     #leading spaces
     tweet_text = tweet_text.replace('#', ' #')
     #remove clutter in tweet
-    for punct in '.!",;:%<>/~`()[]{}?':
+    for punct in '.!",;:%<>/~`()[]{{}}?':
         tweet_text = tweet_text.replace(punct,'')
     #split out the tweet into a list of words
     tweet_text = tweet_text.split()
@@ -121,6 +128,7 @@ def hashtag_searcher(target_hashtag='#Seattle'
     A function to analyze tweets associated with a target hashtag.
     Defaults to the most recent 100 tweets and to todays date as YYYY-MM-DD.
     Target hashtag defaults to #Seattle but this can be easily changed.
+    Essentially, a kind of market basket analysis but for hashtags.
     ''' 
     #simply hashtags to lower
     simple_hashtag = target_hashtag.lower()
@@ -131,14 +139,15 @@ def hashtag_searcher(target_hashtag='#Seattle'
     shared_tags = []
     
     #enable the Cursor to capture your parameters
-    tweets = tweepy.Cursor(api.search,q = f"{target_hashtag}"
-                           ,count = count_of_tweets,
-                           lang = "en",
-                           since = to_date
+    tweets = tweepy.Cursor(api.search
+                           ,q = f"{target_hashtag}"
+                           ,count = count_of_tweets
+                           ,lang = "en"
+                           ,since = to_date
                            ,tweet_mode ='extended'
                            ).items()
     
-    #loop through tweets int the 
+    #loop through tweets
     for tweet in tweets:
         
         #clean the tweet to get just the hashtags
